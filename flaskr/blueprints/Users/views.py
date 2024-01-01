@@ -2,8 +2,14 @@ from flaskr.settings import connectToDB
 from flask import make_response
 from pypika import Query, Table
 from argon2 import PasswordHasher
+from flaskr.settings import Settings
+import jwt
+
 
 def getUsersView(request):
+    if not validateToken(request):
+        return make_response("Error: Token is not provided or is not valid...", 400)
+
     db = connectToDB()
     cur = db.cursor()
 
@@ -41,7 +47,10 @@ def addUserView(request):
         first_name = request.form['first_name']
         last_name = request.form['last_name']
     except KeyError as error:
-        return make_response("Error: Bad user data", 400)
+        return make_response("Error: Bad user data...", 400)
+
+    if findUserByUsername(username):
+        return make_response("Error: User with the username already exists...", 400)
 
     db = connectToDB()
     cur = db.cursor()
@@ -72,23 +81,41 @@ def addUserView(request):
     return make_response("Success: User created successfully!")
 
 def getUserByIdView(request, user_id):
+    if not validateToken(request):
+        return make_response("Error: Token is not provided or is not valid...", 400)
+
     data = findUserById(user_id)
     if not data:
         return make_response("Error: User was not found by specified id", 404)
 
+    # hiding password from random users
+    data.pop('password')
+
     # 200
     return make_response(data)
 
-# deprecated i guess
+# deprecated I guess
 def getUserByUsernameView(request, username):
+    if not validateToken(request):
+        return make_response("Error: Token is not provided or is not valid...", 400)
+
     data = findUserByUsername(username)
     if not data:
         return make_response("Error: User was not found by specified username", 404)
+
+    # hiding password from random users
+    data.pop('password')
 
     # 200
     return make_response(data)
 
 def deleteUserView(request, user_id):
+    if not validateToken(request):
+        return make_response("Error: Token is not provided or is not valid...", 400)
+
+    if not validatePermission(request, user_id):
+        return make_response("Error: You are not allowed to perform desired request...", 403)
+
     if not findUserById(user_id):
         return make_response("Error: User was not found by specified id", 404)
 
@@ -108,6 +135,12 @@ def deleteUserView(request, user_id):
     return make_response("Success: Specified user has been deleted")
 
 def updateUserView(request, user_id):
+    if not validateToken(request):
+        return make_response("Error: Token is not provided or is not valid...", 400)
+
+    if not validatePermission(request, user_id):
+        return make_response("Error: You are not allowed to perform desired request...", 403)
+
     if not findUserById(user_id):
         return make_response("Error: User was not found by specified id", 404)
 
@@ -124,6 +157,9 @@ def updateUserView(request, user_id):
             hasher = PasswordHasher()
             hashed_password = hasher.hash(request.form[field])
             update_query = update_query.set(field, hashed_password)
+        # token field simply doesnt exist
+        elif field == "token":
+            continue
         else:
             update_query = update_query.set(field, request.form[field])
 
@@ -205,3 +241,44 @@ def findUserByUsername(username):
         }
     else:
         return None
+
+def validateToken(request):
+    config = Settings()
+    hasher = PasswordHasher()
+
+    try:
+        token = request.form['token']
+    except KeyError:
+        return False
+
+    data = jwt.decode(token, config.jwt_secret, algorithms="HS256")
+
+    username = data['username']
+    password = data['password']
+
+    user = findUserByUsername(username)
+    if not user:
+        return False
+
+    if hasher.verify(user['password'], password):
+        return True
+    else:
+        return False
+
+def validatePermission(request, user_id):
+    config = Settings()
+
+    try:
+        token = request.form['token']
+    except KeyError:
+        return False
+
+    data = jwt.decode(token, config.jwt_secret, algorithms="HS256")
+
+    username = data['username']
+    password = data['password']
+
+    if findUserById(user_id) == findUserByUsername(username):
+        return True
+    else:
+        return False
