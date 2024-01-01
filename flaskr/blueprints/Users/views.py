@@ -69,46 +69,27 @@ def addUserView(request):
     db.close()
 
     #200
-    return make_response("Success: User added successfully!")
+    return make_response("Success: User created successfully!")
 
-def getUserView(request, user_id):
-    if not foundUserById(user_id):
+def getUserByIdView(request, user_id):
+    data = findUserById(user_id)
+    if not data:
         return make_response("Error: User was not found by specified id", 404)
 
-    db = connectToDB()
-    cur = db.cursor()
+    # 200
+    return make_response(data)
 
-    users = Table('Users')
-    q = Query.from_(users).select(
-        users.id,
-        users.username,
-        users.first_name,
-        users.last_name
-    ).where(
-        users.id == user_id
-    )
+# deprecated i guess
+def getUserByUsernameView(request, username):
+    data = findUserByUsername(username)
+    if not data:
+        return make_response("Error: User was not found by specified username", 404)
 
-    cur.execute(q.get_sql())
-    data = cur.fetchall()
-
-    response = []
-    for el in data:
-        dat = {
-            'id': el[0],
-            'username': el[1],
-            'first_name': el[2],
-            'last_name': el[3]
-        }
-        response.append(dat)
-
-    cur.close()
-    db.close()
-
-    #200
-    return make_response(response)
+    # 200
+    return make_response(data)
 
 def deleteUserView(request, user_id):
-    if not foundUserById(user_id):
+    if not findUserById(user_id):
         return make_response("Error: User was not found by specified id", 404)
 
     db = connectToDB()
@@ -127,7 +108,7 @@ def deleteUserView(request, user_id):
     return make_response("Success: Specified user has been deleted")
 
 def updateUserView(request, user_id):
-    if not foundUserById(user_id):
+    if not findUserById(user_id):
         return make_response("Error: User was not found by specified id", 404)
 
     db = connectToDB()
@@ -155,26 +136,72 @@ def updateUserView(request, user_id):
     #200
     return make_response("Success: User updated successfully")
 
-
-def foundUserById(user_id):
+def findUserById(user_id):
     """ checks if user with provided id is present in the system """
+
     db = connectToDB()
     cur = db.cursor()
 
     users = Table('Users')
     q = Query.from_(users).select(
-        users.id
+        users.id,
+        users.username,
+        users.password,
+        users.first_name,
+        users.last_name
     ).where(
         users.id == user_id
     )
 
     cur.execute(q.get_sql())
-    data = cur.fetchall()
+    data = cur.fetchone()
 
     cur.close()
     db.close()
 
-    if len(data) != 0:
-        return True
+    # if returned data package is not empty - the data has been found
+    if data:
+        return {
+            'id': data[0],
+            'username': data[1],
+            'password': data[2],
+            'first_name': data[3],
+            'last_name': data[4]
+        }
     else:
-        return False
+        return None
+
+def findUserByUsername(username):
+    """ checks if user with provided username is present in the system """
+
+    db = connectToDB()
+    cur = db.cursor()
+
+    users = Table('Users')
+    q = Query.from_(users).select(
+        users.id,
+        users.username,
+        users.password,
+        users.first_name,
+        users.last_name
+    ).where(
+        users.username == username
+    )
+
+    cur.execute(q.get_sql())
+    data = cur.fetchone()
+
+    cur.close()
+    db.close()
+
+    # if returned data package is not empty - the data has been found
+    if data:
+        return {
+            'id': data[0],
+            'username': data[1],
+            'password': data[2],
+            'first_name': data[3],
+            'last_name': data[4]
+        }
+    else:
+        return None

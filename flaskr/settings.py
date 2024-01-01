@@ -9,6 +9,7 @@ class Settings:
     password = config['PASSWORD']
     host = config['HOST']
     port = config['PORT']
+    jwt_secret = config['JWTSECRET']
 
 
 def connectToDB():
