@@ -3,19 +3,21 @@ from flask import make_response
 from pypika import Query, Table
 from argon2 import PasswordHasher
 from flaskr.settings import Settings
+from flaskr.settings import decodeJWT
 import jwt
 
 
 def getUsersView(request):
+    # check if jwt token is valid
     if not validateToken(request):
         return make_response("Error: Token is not provided or is not valid...", 400)
 
     db = connectToDB()
     cur = db.cursor()
 
+    # sql query
     users = Table('Users')
     q = Query.from_(users).select(
-        users.id,
         users.username,
         users.first_name,
         users.last_name,
@@ -25,14 +27,14 @@ def getUsersView(request):
     cur.execute(q.get_sql())
     data = cur.fetchall()
 
+    # collect all the data into a list of dicts
     response = []
     for el in data:
         dat = {
-            'id': el[0],
-            'username': el[1],
-            'first_name': el[2],
-            'last_name': el[3],
-            'role': el[4]
+            'username': el[0],
+            'first_name': el[1],
+            'last_name': el[2],
+            'role': el[3]
         }
         response.append(dat)
 
@@ -43,6 +45,7 @@ def getUsersView(request):
     return make_response(response)
 
 def addUserView(request):
+    # check if all the data for user creation is present
     try:
         username = request.form['username']
         password = request.form['password']
@@ -52,15 +55,18 @@ def addUserView(request):
     except KeyError as error:
         return make_response("Error: Bad user data...", 400)
 
+    # check if username is unique
     if findUserByUsername(username):
         return make_response("Error: User with the username already exists...", 400)
 
     db = connectToDB()
     cur = db.cursor()
 
+    # hashing incoming password
     hasher = PasswordHasher()
     hashed_password = hasher.hash(password)
 
+    # sql query
     users = Table('Users')
     q = Query.into(users).columns(
         'username',
@@ -85,25 +91,13 @@ def addUserView(request):
     #200
     return make_response("Success: User created successfully!")
 
-def getUserByIdView(request, user_id):
-    if not validateToken(request):
-        return make_response("Error: Token is not provided or is not valid...", 400)
-
-    data = findUserById(user_id)
-    if not data:
-        return make_response("Error: User was not found by specified id", 404)
-
-    # hiding password from random users
-    data.pop('password')
-
-    # 200
-    return make_response(data)
-
 # deprecated I guess
 def getUserByUsernameView(request, username):
+    # check if jwt token is valid
     if not validateToken(request):
         return make_response("Error: Token is not provided or is not valid...", 400)
 
+    # check if requested user exists
     data = findUserByUsername(username)
     if not data:
         return make_response("Error: User was not found by specified username", 404)
@@ -114,21 +108,25 @@ def getUserByUsernameView(request, username):
     # 200
     return make_response(data)
 
-def deleteUserView(request, user_id):
+def deleteUserView(request, username):
+    # check if jwt token is valid
     if not validateToken(request):
-        return make_response("Error: Token is not provided or is not valid...", 400)
+        return make_response("Error: Token was not provided or is not valid...", 400)
 
-    if not validatePermission(request, user_id):
+    # check if user is allowed to perform deletion
+    if not validatePermission(request, username):
         return make_response("Error: You are not allowed to perform desired request...", 403)
 
-    if not findUserById(user_id):
-        return make_response("Error: User was not found by specified id", 404)
+    # check if requested user exists
+    if not findUserByUsername(username):
+        return make_response("Error: User was not found by specified username", 404)
 
     db = connectToDB()
     cur = db.cursor()
 
+    # sql query
     users = Table('Users')
-    q = Query.from_(users).delete().where(users.id == user_id)
+    q = Query.from_(users).delete().where(users.username == username)
 
     cur.execute(q.get_sql())
     db.commit()
@@ -139,22 +137,26 @@ def deleteUserView(request, user_id):
     #200
     return make_response("Success: Specified user has been deleted")
 
-def updateUserView(request, user_id):
+def updateUserView(request, username):
+    # check if jwt token is valid
     if not validateToken(request):
         return make_response("Error: Token is not provided or is not valid...", 400)
 
-    if not validatePermission(request, user_id):
+    # check if user is allowed to perform edit
+    if not validatePermission(request, username):
         return make_response("Error: You are not allowed to perform desired request...", 403)
 
-    if not findUserById(user_id):
-        return make_response("Error: User was not found by specified id", 404)
+    # check if requested user exists
+    if not findUserByUsername(username):
+        return make_response("Error: User was not found by specified username", 404)
 
     db = connectToDB()
     cur = db.cursor()
 
+    # sql query
     users = Table('Users')
     # update query object but the data fields to be updated are not provided
-    update_query = Query.update(users).where(users.id == user_id)
+    update_query = Query.update(users).where(users.id == username)
     # providing the data fields
     for field in request.form:
         # if a new password is provided - hash and update the password
@@ -177,52 +179,14 @@ def updateUserView(request, user_id):
     #200
     return make_response("Success: User updated successfully")
 
-def findUserById(user_id):
-    """ checks if user with provided id is present in the system """
-
-    db = connectToDB()
-    cur = db.cursor()
-
-    users = Table('Users')
-    q = Query.from_(users).select(
-        users.id,
-        users.username,
-        users.password,
-        users.first_name,
-        users.last_name,
-        users.role
-    ).where(
-        users.id == user_id
-    )
-
-    cur.execute(q.get_sql())
-    data = cur.fetchone()
-
-    cur.close()
-    db.close()
-
-    # if returned data package is not empty - the data has been found
-    if data:
-        return {
-            'id': data[0],
-            'username': data[1],
-            'password': data[2],
-            'first_name': data[3],
-            'last_name': data[4],
-            'role': data[5]
-        }
-    else:
-        return None
-
 def findUserByUsername(username):
     """ checks if user with provided username is present in the system """
-
     db = connectToDB()
     cur = db.cursor()
 
+    # sql query
     users = Table('Users')
     q = Query.from_(users).select(
-        users.id,
         users.username,
         users.password,
         users.first_name,
@@ -241,12 +205,11 @@ def findUserByUsername(username):
     # if returned data package is not empty - the data has been found
     if data:
         return {
-            'id': data[0],
-            'username': data[1],
-            'password': data[2],
-            'first_name': data[3],
-            'last_name': data[4],
-            'role': data[5]
+            'username': data[0],
+            'password': data[1],
+            'first_name': data[2],
+            'last_name': data[3],
+            'role': data[4]
         }
     else:
         return None
@@ -274,7 +237,7 @@ def validateToken(request):
     else:
         return False
 
-def validatePermission(request, user_id):
+def validatePermission(request, username):
     config = Settings()
 
     try:
@@ -282,15 +245,15 @@ def validatePermission(request, user_id):
     except KeyError:
         return False
 
-    data = jwt.decode(token, config.jwt_secret, algorithms="HS256")
+    data = decodeJWT(token)
 
-    username = data['username']
-    role = data['role']
+    jwt_username = data['username']
+    jwt_role = data['role']
 
-    if role == 'admin':
+    if jwt_role == 'admin':
         return True
 
-    if findUserById(user_id) == findUserByUsername(username):
+    if findUserByUsername(jwt_username) == findUserByUsername(username):
         return True
     else:
         return False

@@ -1,5 +1,6 @@
 from dotenv import dotenv_values
 import psycopg2
+import jwt
 config = dotenv_values("../.env")
 
 # basically a database config
@@ -20,3 +21,7 @@ def connectToDB():
                           host=settings.host,
                           port=settings.port)
     return db
+
+def decodeJWT(token):
+    data = jwt.decode(token, Settings.jwt_secret, algorithms="HS256")
+    return data

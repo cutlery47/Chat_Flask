@@ -32,6 +32,7 @@ def authLogInView(request):
 
     config = Settings()
 
+    # creating jwt token with specified data as payload
     token = jwt.encode({
         "username": username,
         "password": password,
