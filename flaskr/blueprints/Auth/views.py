@@ -12,6 +12,7 @@ def authLogInView(request):
     try:
         username = request.form['username']
         password = request.form['password']
+        role = request.form['role']
     except KeyError:
         return make_response("Error: Bad request data!", 400)
 
@@ -33,7 +34,8 @@ def authLogInView(request):
 
     token = jwt.encode({
         "username": username,
-        "password": password
+        "password": password,
+        "role": role
     }, config.jwt_secret, algorithm="HS256")
 
     return make_response(token)

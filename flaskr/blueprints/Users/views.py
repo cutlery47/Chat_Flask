@@ -18,7 +18,8 @@ def getUsersView(request):
         users.id,
         users.username,
         users.first_name,
-        users.last_name
+        users.last_name,
+        users.role
     )
 
     cur.execute(q.get_sql())
@@ -30,7 +31,8 @@ def getUsersView(request):
             'id': el[0],
             'username': el[1],
             'first_name': el[2],
-            'last_name': el[3]
+            'last_name': el[3],
+            'role': el[4]
         }
         response.append(dat)
 
@@ -46,6 +48,7 @@ def addUserView(request):
         password = request.form['password']
         first_name = request.form['first_name']
         last_name = request.form['last_name']
+        role = request.form['role']
     except KeyError as error:
         return make_response("Error: Bad user data...", 400)
 
@@ -63,12 +66,14 @@ def addUserView(request):
         'username',
         'password',
         'first_name',
-        'last_name'
+        'last_name',
+        'role'
     ).insert(
         username,
         hashed_password,
         first_name,
-        last_name
+        last_name,
+        role
     )
 
     cur.execute(q.get_sql())
@@ -184,7 +189,8 @@ def findUserById(user_id):
         users.username,
         users.password,
         users.first_name,
-        users.last_name
+        users.last_name,
+        users.role
     ).where(
         users.id == user_id
     )
@@ -202,7 +208,8 @@ def findUserById(user_id):
             'username': data[1],
             'password': data[2],
             'first_name': data[3],
-            'last_name': data[4]
+            'last_name': data[4],
+            'role': data[5]
         }
     else:
         return None
@@ -219,7 +226,8 @@ def findUserByUsername(username):
         users.username,
         users.password,
         users.first_name,
-        users.last_name
+        users.last_name,
+        users.role
     ).where(
         users.username == username
     )
@@ -237,7 +245,8 @@ def findUserByUsername(username):
             'username': data[1],
             'password': data[2],
             'first_name': data[3],
-            'last_name': data[4]
+            'last_name': data[4],
+            'role': data[5]
         }
     else:
         return None
@@ -276,7 +285,10 @@ def validatePermission(request, user_id):
     data = jwt.decode(token, config.jwt_secret, algorithms="HS256")
 
     username = data['username']
-    password = data['password']
+    role = data['role']
+
+    if role == 'admin':
+        return True
 
     if findUserById(user_id) == findUserByUsername(username):
         return True
