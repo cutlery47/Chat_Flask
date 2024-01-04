@@ -10,13 +10,13 @@ from flaskr.blueprints.Users.views import findUserByUsername
 def authLogInView(request):
     # check if both username and password are provided
     try:
-        username = request.form['username']
+        user_id = request.form['user_id']
         password = request.form['password']
         role = request.form['role']
     except KeyError:
         return make_response("Error: Bad request data!", 400)
 
-    user = findUserByUsername(username)
+    user = findUserByUsername(user_id)
 
     # check if user with provided username actually exists
     if not user:
@@ -34,9 +34,10 @@ def authLogInView(request):
 
     # creating jwt token with specified data as payload
     token = jwt.encode({
-        "username": username,
+        "user_id": user_id,
         "password": password,
         "role": role
     }, config.jwt_secret, algorithm="HS256")
+
 
     return make_response(token)

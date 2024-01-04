@@ -18,7 +18,7 @@ def getUsersView(request):
     # sql query
     users = Table('Users')
     q = Query.from_(users).select(
-        users.username,
+        users.user_id,
         users.first_name,
         users.last_name,
         users.role
@@ -31,7 +31,7 @@ def getUsersView(request):
     response = []
     for el in data:
         dat = {
-            'username': el[0],
+            'user_id': el[0],
             'first_name': el[1],
             'last_name': el[2],
             'role': el[3]
@@ -47,7 +47,7 @@ def getUsersView(request):
 def addUserView(request):
     # check if all the data for user creation is present
     try:
-        username = request.form['username']
+        user_id = request.form['user_id']
         password = request.form['password']
         first_name = request.form['first_name']
         last_name = request.form['last_name']
@@ -55,9 +55,9 @@ def addUserView(request):
     except KeyError as error:
         return make_response("Error: Bad user data...", 400)
 
-    # check if username is unique
-    if findUserByUsername(username):
-        return make_response("Error: User with the username already exists...", 400)
+    # check if user_id is unique
+    if findUserByUsername(user_id):
+        return make_response("Error: User with the user_id already exists...", 400)
 
     db = connectToDB()
     cur = db.cursor()
@@ -69,13 +69,13 @@ def addUserView(request):
     # sql query
     users = Table('Users')
     q = Query.into(users).columns(
-        'username',
+        'user_id',
         'password',
         'first_name',
         'last_name',
         'role'
     ).insert(
-        username,
+        user_id,
         hashed_password,
         first_name,
         last_name,
@@ -92,15 +92,15 @@ def addUserView(request):
     return make_response("Success: User created successfully!")
 
 # deprecated I guess
-def getUserByUsernameView(request, username):
+def getUserByUsernameView(request, user_id):
     # check if jwt token is valid
     if not validateToken(request):
         return make_response("Error: Token is not provided or is not valid...", 400)
 
     # check if requested user exists
-    data = findUserByUsername(username)
+    data = findUserByUsername(user_id)
     if not data:
-        return make_response("Error: User was not found by specified username", 404)
+        return make_response("Error: User was not found by specified user_id", 404)
 
     # hiding password from random users
     data.pop('password')
@@ -108,25 +108,25 @@ def getUserByUsernameView(request, username):
     # 200
     return make_response(data)
 
-def deleteUserView(request, username):
+def deleteUserView(request, user_id):
     # check if jwt token is valid
     if not validateToken(request):
         return make_response("Error: Token was not provided or is not valid...", 400)
 
     # check if user is allowed to perform deletion
-    if not validatePermission(request, username):
+    if not validatePermission(request, user_id):
         return make_response("Error: You are not allowed to perform desired request...", 403)
 
     # check if requested user exists
-    if not findUserByUsername(username):
-        return make_response("Error: User was not found by specified username", 404)
+    if not findUserByUsername(user_id):
+        return make_response("Error: User was not found by specified user_id", 404)
 
     db = connectToDB()
     cur = db.cursor()
 
     # sql query
     users = Table('Users')
-    q = Query.from_(users).delete().where(users.username == username)
+    q = Query.from_(users).delete().where(users.user_id == user_id)
 
     cur.execute(q.get_sql())
     db.commit()
@@ -137,18 +137,18 @@ def deleteUserView(request, username):
     #200
     return make_response("Success: Specified user has been deleted")
 
-def updateUserView(request, username):
+def updateUserView(request, user_id):
     # check if jwt token is valid
     if not validateToken(request):
         return make_response("Error: Token is not provided or is not valid...", 400)
 
     # check if user is allowed to perform edit
-    if not validatePermission(request, username):
+    if not validatePermission(request, user_id):
         return make_response("Error: You are not allowed to perform desired request...", 403)
 
     # check if requested user exists
-    if not findUserByUsername(username):
-        return make_response("Error: User was not found by specified username", 404)
+    if not findUserByUsername(user_id):
+        return make_response("Error: User was not found by specified user_id", 404)
 
     db = connectToDB()
     cur = db.cursor()
@@ -156,7 +156,7 @@ def updateUserView(request, username):
     # sql query
     users = Table('Users')
     # update query object but the data fields to be updated are not provided
-    update_query = Query.update(users).where(users.id == username)
+    update_query = Query.update(users).where(users.id == user_id)
     # providing the data fields
     for field in request.form:
         # if a new password is provided - hash and update the password
@@ -179,21 +179,21 @@ def updateUserView(request, username):
     #200
     return make_response("Success: User updated successfully")
 
-def findUserByUsername(username):
-    """ checks if user with provided username is present in the system """
+def findUserByUsername(user_id):
+    """ checks if user with provided user_id is present in the system """
     db = connectToDB()
     cur = db.cursor()
 
     # sql query
     users = Table('Users')
     q = Query.from_(users).select(
-        users.username,
+        users.user_id,
         users.password,
         users.first_name,
         users.last_name,
         users.role
     ).where(
-        users.username == username
+        users.user_id == user_id
     )
 
     cur.execute(q.get_sql())
@@ -205,7 +205,7 @@ def findUserByUsername(username):
     # if returned data package is not empty - the data has been found
     if data:
         return {
-            'username': data[0],
+            'user_id': data[0],
             'password': data[1],
             'first_name': data[2],
             'last_name': data[3],
@@ -224,11 +224,12 @@ def validateToken(request):
         return False
 
     data = jwt.decode(token, config.jwt_secret, algorithms="HS256")
+    print(data)
 
-    username = data['username']
+    user_id = data['user_id']
     password = data['password']
 
-    user = findUserByUsername(username)
+    user = findUserByUsername(user_id)
     if not user:
         return False
 
@@ -237,7 +238,7 @@ def validateToken(request):
     else:
         return False
 
-def validatePermission(request, username):
+def validatePermission(request, user_id):
     config = Settings()
 
     try:
@@ -247,13 +248,13 @@ def validatePermission(request, username):
 
     data = decodeJWT(token)
 
-    jwt_username = data['username']
+    jwt_user_id = data['user_id']
     jwt_role = data['role']
 
     if jwt_role == 'admin':
         return True
 
-    if findUserByUsername(jwt_username) == findUserByUsername(username):
+    if findUserByUsername(jwt_user_id) == findUserByUsername(user_id):
         return True
     else:
         return False

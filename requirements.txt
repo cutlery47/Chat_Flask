@@ -2,3 +2,5 @@ Flask
 psycopg2
 python-dotenv
 pypika
+argon2-cffi
+pyjwt

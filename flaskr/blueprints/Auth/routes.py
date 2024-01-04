@@ -1,4 +1,4 @@
-from flask import Blueprint, request, redirect, url_for
+from flask import Blueprint, request
 
 # VIEW IMPORTS
 from flaskr.blueprints.Auth.views import authLogInView
